@@ -1,0 +1,455 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>ATS Resume Checker — Job Title + JD + PDF</title>
+
+  <!-- Tailwind -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- pdf.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.14.305/pdf.min.js"></script>
+
+  <!-- lottie -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/bodymovin/5.9.6/lottie.min.js"></script>
+
+  <!-- jsPDF -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <style>
+    :root {
+      --glass-bg: rgba(255,255,255,0.06);
+      --glass-border: rgba(255,255,255,0.10);
+    }
+    html,body{height:100%}
+    body{
+      margin:0;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      color:#e6eef8;
+      background:#05060a;
+      overflow:auto;
+    }
+
+    /* Neon particle canvas occupies full screen behind content */
+    #particleCanvas{
+      position:fixed; inset:0; z-index:-3;
+      background: linear-gradient(120deg,#00111a 0%, #071226 50%, #001018 100%);
+    }
+
+    /* glass cards */
+    .glass{
+      background:var(--glass-bg);
+      border:1px solid var(--glass-border);
+      backdrop-filter: blur(8px) saturate(120%);
+      -webkit-backdrop-filter: blur(8px) saturate(120%);
+    }
+
+    /* animated conic ring for score */
+    .score-ring{
+      width:112px; height:112px; border-radius:999px; display:grid; place-items:center;
+      background: conic-gradient(#06b6d4 var(--p,0%), rgba(255,255,255,0.04) 0);
+      box-shadow: 0 8px 24px rgba(2,6,23,0.6), inset 0 -6px 12px rgba(255,255,255,0.02);
+      font-weight:700;
+    }
+
+    /* floating Lottie */
+    .lottie-wrap{ width:120px; height:120px; }
+
+    /* responsive grid for form/result */
+    @media(min-width:1024px){
+      .grid-layout{ display:grid; grid-template-columns: 1fr 420px; gap:28px; align-items:start; }
+    }
+
+    /* small effects */
+    .btn-primary{ background:linear-gradient(90deg,#06b6d4,#6366f1); color:#04111a; }
+    .btn-accent{ background:#10b981; color:#042025; }
+  </style>
+</head>
+<body>
+
+  <!-- Particle Canvas (neon) -->
+  <canvas id="particleCanvas"></canvas>
+
+  <div class="max-w-6xl mx-auto px-6 py-10">
+    <header class="flex items-center justify-between gap-6 mb-8">
+      <div>
+        <h1 class="text-4xl lg:text-5xl font-extrabold">🚀 ATS Resume Checker</h1>
+        <p class="mt-2 text-slate-300/80 max-w-xl">Paste job title & description, upload a PDF resume — extract, score, and download an ATS report.</p>
+      </div>
+
+      <div class="hidden lg:block lottie-wrap glass p-2 rounded-xl">
+        <div id="lottie" class="w-full h-full"></div>
+      </div>
+    </header>
+
+    <main class="glass p-6 rounded-2xl shadow-xl">
+      <div class="grid-layout">
+        <!-- LEFT: Inputs -->
+        <section class="space-y-5">
+               <div>
+            <label class="block text-sm font-medium text-slate-200 mb-2">📄 Upload Resume (PDF)</label>
+            <input id="resumeFile" type="file" accept="application/pdf" class="w-full text-sm text-slate-200"/>
+            <div class="mt-3 flex gap-3">
+              <button id="analyzeBtn" class="px-5 py-2 rounded-xl btn-primary shadow">🔎 Analyze Resume</button>
+              <button id="downloadReportBtn" class="px-4 py-2 rounded-xl btn-accent shadow">⬇ Download ATS Report (PDF)</button>
+              <button id="clearBtn" class="px-4 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-sm">Clear</button>
+            </div>
+            <p class="mt-2 text-xs text-slate-300/70">Extraction & analysis are done locally in your browser — files are not uploaded to any server.</p>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-200 mb-2">🧾 Job Title</label>
+            <input id="jobTitle" class="w-full p-3 rounded-xl bg-transparent border border-slate-700 text-white" placeholder="e.g., Frontend Developer (React)"/>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-slate-200 mb-2">📌 Job Description</label>
+            <textarea id="jobDescription" rows="7" class="w-full p-3 rounded-xl bg-transparent border border-slate-700 text-white" placeholder="Paste full job description here..."></textarea>
+          </div>
+
+       
+
+          <details class="mt-3">
+            <summary class="text-sm text-slate-200 cursor-pointer">🔎 Show extracted resume preview</summary>
+            <pre id="extractedPreview" class="mt-2 p-3 rounded-md bg-[#031523]/60 text-xs max-h-48 overflow-auto text-slate-100"></pre>
+          </details>
+        </section>
+
+        <!-- RIGHT: Results -->
+        <aside class="space-y-4">
+          <div class="glass p-5 rounded-xl">
+            <div class="flex items-center justify-between gap-4">
+              <div>
+                <div class="text-sm text-slate-300">ATS Score</div>
+                <div class="mt-3 flex items-center gap-4">
+                  <div class="score-ring" id="scoreRing" style="--p:0%">
+                    <div id="scoreTxt">0%</div>
+                  </div>
+                  <div>
+                    <h3 id="scoreHeadline" class="text-2xl font-semibold">No analysis yet</h3>
+                    <p id="scoreSub" class="text-sm text-slate-300/80 mt-1">Add JD & upload resume then click Analyze.</p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="text-right">
+                <div class="text-xs text-slate-400">Total checks</div>
+                <div id="userCount" class="text-3xl font-bold mt-1">0</div>
+              </div>
+            </div>
+
+            <hr class="my-4 border-slate-700"/>
+
+            <div>
+              <h4 class="font-semibold text-slate-100">Top matching keywords</h4>
+              <div id="foundKws" class="mt-3 flex flex-wrap gap-2"></div>
+            </div>
+
+            <div class="mt-4">
+              <h4 class="font-semibold text-slate-100">Missing / Recommended keywords</h4>
+              <div id="missingKws" class="mt-3 flex flex-wrap gap-2"></div>
+            </div>
+
+            <div class="mt-4">
+              <h4 class="font-semibold text-slate-100">Quick Suggestions</h4>
+              <ul id="suggestions" class="list-disc ml-5 mt-2 text-sm text-slate-300/90"></ul>
+            </div>
+          </div>
+
+          <div class="glass p-4 rounded-xl text-sm">
+            <div class="font-medium mb-2">Actions</div>
+            <div class="flex gap-2">
+              <button id="copySummaryBtn" class="flex-1 px-3 py-2 rounded-lg bg-slate-700 hover:bg-slate-600">Copy Summary</button>
+              <button id="downloadTxtBtn" class="px-3 py-2 rounded-lg bg-slate-700 hover:bg-slate-600">Download Extracted</button>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </main>
+
+    <footer class="mt-8 text-center text-slate-300/70 text-sm">
+      Built with ❤️ — client-side only. Want DOCX extraction or OpenAI suggestions? Tell me.
+    </footer>
+  </div>
+
+<script>
+/* ========== Neon particle background (simple lightweight) ========== */
+(function initParticles(){
+  const c = document.getElementById('particleCanvas');
+  const ctx = c.getContext('2d');
+  let W = c.width = innerWidth, H = c.height = innerHeight;
+  const pts = [];
+  const COUNT = Math.max(30, Math.floor((W*H)/90000)); // scale with screen
+
+  function rand(min,max){return Math.random()*(max-min)+min;}
+  function resize(){ W=c.width=innerWidth; H=c.height=innerHeight; }
+  addEventListener('resize', ()=>{ resize(); pts.length=0; init(); });
+
+  function init(){
+    for(let i=0;i<COUNT;i++){
+      pts.push({
+        x: rand(0,W), y: rand(0,H),
+        vx: rand(-0.3,0.3), vy: rand(-0.15,0.15),
+        r: rand(1.5,3.5),
+        hue: Math.floor(rand(160,220))
+      });
+    }
+  }
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    // soft glow background
+    // lines between close points
+    for(let i=0;i<pts.length;i++){
+      const p=pts[i];
+      p.x += p.vx; p.y += p.vy;
+      if(p.x<0) p.x=W;
+      if(p.x>W) p.x=0;
+      if(p.y<0) p.y=H;
+      if(p.y>H) p.y=0;
+      // glow
+      const g = ctx.createRadialGradient(p.x,p.y,p.r,p.x,p.y,p.r*10);
+      g.addColorStop(0, `hsla(${p.hue},90%,60%,0.12)`);
+      g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(p.x,p.y,p.r*4,0,Math.PI*2); ctx.fill();
+      // core
+      ctx.fillStyle = `hsla(${p.hue},95%,65%,0.9)`;
+      ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fill();
+      // line to nearby
+      for(let j=i+1;j<pts.length;j++){
+        const q=pts[j];
+        const dx = p.x-q.x, dy=p.y-q.y;
+        const d2 = dx*dx+dy*dy;
+        if(d2 < 14000){
+          ctx.strokeStyle = `hsla(${(p.hue+q.hue)/2},85%,60%,${(14000-d2)/14000*0.12})`;
+          ctx.lineWidth = 1;
+          ctx.beginPath(); ctx.moveTo(p.x,p.y); ctx.lineTo(q.x,q.y); ctx.stroke();
+        }
+      }
+    }
+    requestAnimationFrame(draw);
+  }
+  init(); draw();
+})();
+
+/* ========== Lottie animation init ========== */
+try{
+  lottie.loadAnimation({
+    container: document.getElementById('lottie'),
+    renderer: 'svg',
+    loop: true,
+    autoplay: true,
+    path: 'https://assets10.lottiefiles.com/packages/lf20_w51pcehl.json' // friendly robot
+  });
+}catch(e){ console.warn('Lottie failed', e); }
+
+/* ========== Utilities ========== */
+function normalizeText(s=''){
+  return s.replace(/[’‘“”—–••·.,;:()/\\[\]"]/g,' ').replace(/\s+/g,' ').trim().toLowerCase();
+}
+function tokensFrom(text){
+  return normalizeText(text).split(' ').filter(t=>t.length>1);
+}
+function unique(arr){ return Array.from(new Set(arr)); }
+
+/* ========== App logic ========== */
+const analyzeBtn = document.getElementById('analyzeBtn');
+const resumeFile = document.getElementById('resumeFile');
+const jobTitleEl = document.getElementById('jobTitle');
+const jobDescriptionEl = document.getElementById('jobDescription');
+const extractedPreview = document.getElementById('extractedPreview');
+
+let userCount = parseInt(localStorage.getItem('atsUserCount')||'0',10);
+document.getElementById('userCount').innerText = userCount;
+
+analyzeBtn.addEventListener('click', async ()=>{
+  const jdRaw = jobDescriptionEl.value || '';
+  const titleRaw = jobTitleEl.value || '';
+  const file = resumeFile.files[0];
+
+  if(titleRaw.trim().length < 2 && jdRaw.trim().length < 10){
+    alert('Please enter a Job Title or a Job Description (preferably both).');
+    return;
+  }
+  if(!file){
+    alert('Please upload a PDF resume first.');
+    return;
+  }
+
+  // extract PDF
+  try{
+    const arrayBuf = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({data:arrayBuf}).promise;
+    let full = '';
+    for(let p=1;p<=pdf.numPages;p++){
+      const page = await pdf.getPage(p);
+      const content = await page.getTextContent();
+      const pageText = content.items.map(i=>i.str).join(' ');
+      full += pageText + '\n\n';
+    }
+    extractedPreview.textContent = full.slice(0,5000);
+    runAnalysis(full, titleRaw, jdRaw);
+  }catch(err){
+    console.error(err);
+    alert('Failed to extract PDF. Try another PDF or a simpler resume format.');
+  }
+});
+
+/* Core scoring: compare JD tokens and resume tokens */
+function runAnalysis(resumeText, titleText, jdText){
+  const resume = normalizeText(resumeText || '');
+  const jd = normalizeText(jdText || '');
+  const title = normalizeText(titleText || '');
+
+  // derive keywords from JD+title: top tokens (excluding stopwords)
+  const stop = new Set(("a,about,above,after,again,against,all,am,an,and,any,are,as,at,be,because,been,before,being,below,between,both,but,by,could,did,do,does,doing,down,during,each,few,for,from,further,had,has,have,having,he,her,here,him,his,how,i,if,in,into,is,it,its,me,more,most,my,of,on,once,only,or,other,our,out,over,own,same,see,she,should,so,some,such,than,that,the,their,them,then,there,they,this,those,through,to,too,under,up,very,was,were,what,when,where,which,while,who,whom,why,with,your,yours").split(','));
+  function topFrom(text, n=25){
+    const tokens = text.split(/\s+/).filter(Boolean).map(t=>t.replace(/[^a-z0-9]/gi,''));
+    const freq = {};
+    tokens.forEach(t=>{ const w=t.toLowerCase(); if(!w||stop.has(w)||/^\d+$/.test(w)||w.length<3) return; freq[w]=(freq[w]||0)+1; });
+    return Object.entries(freq).sort((a,b)=>b[1]-a[1]).slice(0,n).map(x=>x[0]);
+  }
+
+  // Job-derived keywords
+  const jdCandidates = unique([...topFrom(title, 10), ...topFrom(jd, 50)]);
+  // fallback: include some general keywords to recommend
+  const generalKws = ['java','python','javascript','react','node','sql','aws','docker','kubernetes','api','html','css','machine learning','ai','aws','rest'];
+  const jdKws = unique([...jdCandidates, ...generalKws]).slice(0,60);
+
+  // find matches in resume
+  const found = jdKws.filter(k=> resume.includes(k));
+  // compute scores: structure + match ratio + keyword density
+  let score = 0;
+  // structure checks
+  if(/skills\b/.test(resume)) score += 12;
+  if(/experience\b/.test(resume)) score += 12;
+  if(/education\b/.test(resume)) score += 8;
+  if(/project(s)?\b/.test(resume)) score += 8;
+  // match ratio
+  const matchRatio = jdKws.length ? (found.length / jdKws.length) : 0;
+  score += Math.round(matchRatio * 50); // up to 50 points from matching
+  // length bonus (don't reward extremely short)
+  if(resume.length > 800) score += 8;
+  if(resume.length > 1500) score += 8;
+
+  if(score > 100) score = 100;
+
+  // Update UI: score ring
+  const pct = score;
+  document.getElementById('scoreTxt').innerText = pct + '%';
+  document.getElementById('scoreRing').style.setProperty('--p', pct + '%');
+  document.getElementById('scoreHeadline').innerText = pct >= 85 ? 'Excellent' : (pct>=65 ? 'Good' : 'Needs improvement');
+  document.getElementById('scoreSub').innerText = pct >=85 ? 'Resume aligns well with the job.' : (pct>=65 ? 'Decent — add a few targeted keywords' : 'Add role keywords, skills and structure.');
+
+  // show found keywords
+  const foundKwsEl = document.getElementById('foundKws');
+  foundKwsEl.innerHTML = '';
+  found.slice(0,30).forEach(k=>{
+    const el = document.createElement('div');
+    el.className = 'inline-block px-3 py-1 rounded-full text-xs bg-slate-900/40 border border-slate-700/60';
+    el.textContent = k;
+    foundKwsEl.appendChild(el);
+  });
+
+  // missing recommendations = JD keywords not found
+  const missing = jdKws.filter(k=>!found.includes(k)).slice(0,30);
+  const missingEl = document.getElementById('missingKws');
+  missingEl.innerHTML = '';
+  missing.forEach(k=>{
+    const el = document.createElement('div');
+    el.className = 'inline-block px-3 py-1 rounded-full text-xs bg-[#0b1f2a]/60 border border-slate-700/40';
+    el.textContent = k;
+    missingEl.appendChild(el);
+  });
+
+  // suggestions list
+  const sugg = [];
+  if(!/skills\b/.test(resume)) sugg.push('Add a prominent "Skills" section listing tools & tech.');
+  if(!/experience\b/.test(resume)) sugg.push('Add a "Professional Experience" section with bullet achievements and metrics.');
+  if(!/education\b/.test(resume)) sugg.push('Include "Education" with degree and institution.');
+  if(!/project(s)?\b/.test(resume)) sugg.push('Add 1–2 project sections describing outcomes and tools.');
+  if(found.length < Math.max(3, Math.floor(jdKws.length/6))) sugg.push('Incorporate more JD keywords (relevant tools, frameworks, certifications).');
+  if(resume.length < 600) sugg.push('Resume is short — add measurable achievements and projects.');
+
+  const sugEl = document.getElementById('suggestions');
+  sugEl.innerHTML = '';
+  sugg.forEach(s => { const li=document.createElement('li'); li.textContent=s; sugEl.appendChild(li); });
+
+  // show result area (scroll)
+  document.getElementById('scoreRing').scrollIntoView({behavior:'smooth'});
+
+  // update user count
+  userCount++;
+  localStorage.setItem('atsUserCount', String(userCount));
+  document.getElementById('userCount').innerText = userCount;
+
+  // save last analysis for report
+  window.__lastAnalysis = {
+    timestamp: new Date().toISOString(),
+    score: pct,
+    jobTitle: titleText,
+    jobDescription: jdText,
+    foundKeywords: found,
+    missingKeywords: missing,
+    suggestions: sugg,
+    extractedText: resumeText
+  };
+}
+
+/* Copy summary action */
+document.getElementById('copySummaryBtn').addEventListener('click', ()=>{
+  const s = window.__lastAnalysis;
+  if(!s){ alert('Run an analysis first'); return; }
+  const txt = `ATS Report — ${s.timestamp}\nScore: ${s.score}%\nJob Title: ${s.jobTitle}\nFound keywords: ${s.foundKeywords.join(', ')}\nSuggestions:\n- ${s.suggestions.join('\n- ')}`;
+  navigator.clipboard.writeText(txt).then(()=> alert('Summary copied to clipboard'));
+});
+
+/* Download extracted text */
+document.getElementById('downloadTxtBtn').addEventListener('click', ()=>{
+  const text = document.getElementById('extractedPreview').textContent || '';
+  if(!text) { alert('No extracted text. Run an analysis first.'); return; }
+  const blob = new Blob([text], {type:'text/plain'});
+  const a = document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='resume_extracted.txt'; a.click();
+  URL.revokeObjectURL(a.href);
+});
+
+/* Generate PDF report (jsPDF) */
+const { jsPDF } = window.jspdf;
+document.getElementById('downloadReportBtn').addEventListener('click', ()=>{
+  const s = window.__lastAnalysis;
+  if(!s){ alert('Run an analysis first'); return; }
+  const doc = new jsPDF({ unit:'pt', format:'a4' });
+  const left = 36; let y=40;
+  doc.setFontSize(18); doc.text('ATS Resume Report', left, y); y+=26;
+  doc.setFontSize(11); doc.text(`Generated: ${new Date(s.timestamp).toLocaleString()}`, left, y); y+=18;
+  doc.setFontSize(14); doc.text(`Score: ${s.score}%`, left, y); y+=22;
+
+  doc.setFontSize(12); doc.text('Job Title:', left, y); doc.setFontSize(10); doc.text(s.jobTitle||'(not provided)', left+80, y, {maxWidth:460}); y+=18;
+  doc.setFontSize(12); doc.text('Found keywords:', left, y); y+=14; doc.setFontSize(10); doc.text(s.foundKeywords.join(', ')||'(none)', left, y, {maxWidth:520}); y+=22;
+
+  doc.setFontSize(12); doc.text('Recommended keywords to add:', left, y); y+=14; doc.setFontSize(10); doc.text(s.missingKeywords.slice(0,50).join(', '), left, y, {maxWidth:520}); y+=26;
+
+  doc.setFontSize(12); doc.text('Suggestions:', left, y); y+=14; doc.setFontSize(10);
+  s.suggestions.forEach((sg, idx)=>{
+    doc.text(`${idx+1}. ${sg}`, left+6, y, {maxWidth:520}); y+=14; if(y>740){ doc.addPage(); y=40; }
+  });
+
+  doc.addPage(); y=40; doc.setFontSize(12); doc.text('Extracted resume text (snippet):', left, y); y+=18;
+  doc.setFontSize(9); const excerpt = (s.extractedText||'').slice(0,8000); const lines = doc.splitTextToSize(excerpt, 520); doc.text(lines, left, y);
+
+  doc.save(`ATS_Report_${(new Date()).toISOString().slice(0,19).replace(/[:T]/g,'_')}.pdf`);
+});
+
+/* Clear button */
+document.getElementById('clearBtn').addEventListener('click', ()=>{
+  jobTitleEl.value=''; jobDescriptionEl.value=''; resumeFile.value=''; extractedPreview.textContent=''; 
+  document.getElementById('foundKws').innerHTML=''; document.getElementById('missingKws').innerHTML=''; document.getElementById('suggestions').innerHTML='';
+  document.getElementById('scoreTxt').innerText='0%'; document.getElementById('scoreHeadline').innerText='No analysis yet'; document.getElementById('scoreSub').innerText='Upload & analyze';
+});
+
+/* Simple friendly keyboard shortcut: Enter on JD + Ctrl to analyze */
+document.getElementById('jobDescription').addEventListener('keydown', (e)=>{ if(e.ctrlKey && e.key==='Enter'){ analyzeBtn.click(); } });
+
+</script>
+</body>
+</html>
