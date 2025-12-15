@@ -239,10 +239,14 @@
     <footer class="mt-8 text-center text-slate-300/70 text-sm">
       Built by aJu — client-side only. Want DOCX extraction or OpenAI suggestions? Tell me.
 
-      <div id="scrollUsersBox" class="mt-3 text-xs text-slate-300/70">
-  👀 People scrolling this page: 
-  <span id="scrollUserCount">0</span>
+      <div class="mt-6 text-center">
+  <p class="text-sm text-slate-400">
+    🔢 Total Resume Analyses Performed:
+    <span id="globalAnalyzeCount" class="font-bold text-cyan-400">0</span>
+  </p>
 </div>
+
+
 
     </footer>
   </div>
@@ -334,8 +338,14 @@ const jobTitleEl = document.getElementById('jobTitle');
 const jobDescriptionEl = document.getElementById('jobDescription');
 const extractedPreview = document.getElementById('extractedPreview');
 
-let userCount = parseInt(localStorage.getItem('atsUserCount')||'0',10);
-document.getElementById('userCount').innerText = userCount;
+let globalAnalyzeCount = parseInt(
+  localStorage.getItem('globalAnalyzeCount') || '0',
+  10
+);
+
+// show on page load
+document.getElementById('globalAnalyzeCount').innerText = globalAnalyzeCount;
+
 
 analyzeBtn.addEventListener('click', async ()=>{
   const jdRaw = jobDescriptionEl.value || '';
@@ -454,9 +464,13 @@ function runAnalysis(resumeText, titleText, jdText){
   document.getElementById('scoreRing').scrollIntoView({behavior:'smooth'});
 
   // update user count
-  userCount++;
-  localStorage.setItem('atsUserCount', String(userCount));
-  document.getElementById('userCount').innerText = userCount;
+// increment total analysis counter
+globalAnalyzeCount++;
+localStorage.setItem('globalAnalyzeCount', globalAnalyzeCount);
+document.getElementById('globalAnalyzeCount').innerText = globalAnalyzeCount;
+
+
+  
 
   // save last analysis for report
   window.__lastAnalysis = {
@@ -525,45 +539,10 @@ document.getElementById('clearBtn').addEventListener('click', ()=>{
 /* Simple friendly keyboard shortcut: Enter on JD + Ctrl to analyze */
 document.getElementById('jobDescription').addEventListener('keydown', (e)=>{ if(e.ctrlKey && e.key==='Enter'){ analyzeBtn.click(); } });
 
- /* ========== Scroll User Counter (Client-side) ========== */
-(function(){
-  const STORAGE_KEY = "ats_scroll_user_count";
-  const USER_FLAG = "ats_user_scrolled";
 
-  let count = parseInt(localStorage.getItem(STORAGE_KEY) || "0", 10);
-  const counterEl = document.getElementById("scrollUserCount");
-  counterEl.textContent = count;
-
-  let counted = localStorage.getItem(USER_FLAG);
-
-  function onFirstScroll(){
-    if(!counted){
-      count++;
-      localStorage.setItem(STORAGE_KEY, count);
-      localStorage.setItem(USER_FLAG, "true");
-      counterEl.textContent = count;
-      counted = true;
-    }
-    window.removeEventListener("scroll", onFirstScroll);
-  }
-
-  window.addEventListener("scroll", onFirstScroll, { passive:true });
-})();
  
 </script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
-
 
 
