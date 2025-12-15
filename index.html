@@ -252,6 +252,39 @@
   </div>
 
 <script>
+<script>
+/* ========= Job Suggestion Popup ========= */
+(function () {
+  const banner = document.getElementById("jobNotice");
+  const yesBtn = document.getElementById("jobYes");
+  const noBtn = document.getElementById("jobNo");
+
+  // Show only once per user
+  if (!localStorage.getItem("jobNoticeSeen")) {
+    setTimeout(() => {
+      banner.classList.remove("hidden");
+      banner.classList.add("animate-bounce");
+    }, 5000); // show after 5 seconds
+  }
+
+  yesBtn.addEventListener("click", () => {
+    banner.classList.add("hidden");
+    localStorage.setItem("jobNoticeSeen", "yes");
+
+    // Optional action
+    alert("✅ Tip: Add missing keywords & projects to improve your ATS score!");
+  });
+
+  noBtn.addEventListener("click", () => {
+    banner.classList.add("hidden");
+    localStorage.setItem("jobNoticeSeen", "no");
+  });
+})();
+</script>
+
+  
+
+  
 /* ========== Neon particle background (simple lightweight) ========== */
 (function initParticles(){
   const c = document.getElementById('particleCanvas');
@@ -553,8 +586,34 @@ document.getElementById('jobDescription').addEventListener('keydown', (e)=>{ if(
 
  
 </script>
+
+  <!-- Job Search Notice Banner -->
+<div id="jobNotice" class="fixed bottom-6 right-6 z-50 hidden">
+  <div class="glass rounded-2xl p-5 w-80 shadow-2xl border border-cyan-400/30">
+    <h3 class="text-lg font-bold text-cyan-400 mb-2">
+      💼 Are you looking for a job?
+    </h3>
+    <p class="text-sm text-slate-300 mb-4">
+      Optimize your resume to beat ATS systems and get more interview calls.
+    </p>
+
+    <div class="flex gap-3">
+      <button id="jobYes"
+        class="flex-1 px-3 py-2 rounded-xl bg-cyan-500 text-slate-900 font-semibold hover:bg-cyan-400 transition">
+        Yes, Help Me 🚀
+      </button>
+
+      <button id="jobNo"
+        class="px-3 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-sm">
+        No Thanks
+      </button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
+
 
 
 
