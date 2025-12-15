@@ -330,6 +330,17 @@ function tokensFrom(text){
   return normalizeText(text).split(' ').filter(t=>t.length>1);
 }
 function unique(arr){ return Array.from(new Set(arr)); }
+/*---------------------edit this-----*/
+fetch("https://YOUR-BACKEND-URL/analyzeCount", {
+  method: "POST"
+})
+.then(res => res.text())
+.then(count => {
+  document.getElementById("globalAnalyzeCount").innerText = count;
+})
+.catch(err => console.error(err));
+
+
 
 /* ========== App logic ========== */
 const analyzeBtn = document.getElementById('analyzeBtn');
@@ -544,5 +555,6 @@ document.getElementById('jobDescription').addEventListener('keydown', (e)=>{ if(
 </script>
 </body>
 </html>
+
 
 
